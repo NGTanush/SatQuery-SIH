@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # Model Configuration
     VQA_MODEL_NAME: str = "Salesforce/blip-vqa-base"
     VQA_USE_FALLBACK: bool = True
+    VQA_ADAPTER_PATH: str | None = None
     
     # Paths
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")

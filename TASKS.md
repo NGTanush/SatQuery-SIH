@@ -37,8 +37,8 @@
 
 - [x] Select BIFOLD BigEarthNet v2.0 VQA as the adaptation dataset and document image-patch integration.
 - [x] Set up Google Colab notebook for downstream fine-tuning.
-- [ ] Fine-tune a model (for example, RemoteCLIP or LLaVA) on BigEarthNet or RSVQA.
-- [ ] Export and load adapted checkpoints in specialist models.
+- [x] Fine-tune a model (for example, RemoteCLIP or LLaVA) on BigEarthNet or RSVQA.
+- [x] Export and load adapted checkpoints in specialist models.
 - [ ] Run benchmarks comparing the adapted model with a generic VLM.
 
 ### [x] Phase 6: LangGraph Agent Orchestration

@@ -41,8 +41,14 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
                 
             logger.info(f"Loading VQA model '{self.model_name}' on device '{self.device}'...")
             self.processor = BlipProcessor.from_pretrained(self.model_name)
-            self.model = BlipForQuestionAnswering.from_pretrained(self.model_name).to(self.device)
-            logger.info("Successfully loaded HuggingFace VQA model.")
+            base_model = BlipForQuestionAnswering.from_pretrained(self.model_name).to(self.device)
+            if settings.VQA_ADAPTER_PATH and os.path.exists(settings.VQA_ADAPTER_PATH):
+                logger.info(f"Loading Peft VQA Adapter from '{settings.VQA_ADAPTER_PATH}'...")
+                from peft import PeftModel
+                self.model = PeftModel.from_pretrained(base_model, settings.VQA_ADAPTER_PATH)
+            else:
+                self.model = base_model
+            logger.info("Successfully loaded HuggingFace VQA model (with adapter if configured).")
         except Exception as e:
             self._fallback_active = True
             logger.warning(
