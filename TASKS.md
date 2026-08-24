@@ -35,6 +35,7 @@
 
 ### [/] Phase 5: Remote-Sensing VLM Model Adaptation Layer
 
+- [x] Select BIFOLD BigEarthNet v2.0 VQA as the adaptation dataset and document image-patch integration.
 - [x] Set up Google Colab notebook for downstream fine-tuning.
 - [ ] Fine-tune a model (for example, RemoteCLIP or LLaVA) on BigEarthNet or RSVQA.
 - [ ] Export and load adapted checkpoints in specialist models.

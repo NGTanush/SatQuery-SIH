@@ -34,7 +34,7 @@ and never substituted with fabricated benchmark claims.
 
 ## Current status
 
-- C1 — partially complete: Colab notebook, LoRA entry point, and artifact contract added; a real training run remains required.
+- C1 — partially complete: BIFOLD BigEarthNet v2.0 selected; streaming manifest preparation, Colab notebook, LoRA entry point, and artifact contract added. A real image-map-backed training run remains required.
 - C2 — complete: transparent classifier and unified agent route verified.
 - C3 — complete: mask overlay and PDF evidence export implemented.
 - C4 — partially complete: metric runner implemented; held-out evaluation remains required.
