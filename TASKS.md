@@ -40,6 +40,7 @@
 - [x] Fine-tune a model (for example, RemoteCLIP or LLaVA) on BigEarthNet or RSVQA.
 - [x] Export and load adapted checkpoints in specialist models.
 - [ ] Run benchmarks comparing the adapted model with a generic VLM.
+  - Current evidence: adapted checkpoint reaches 0.50 (5/10) on the deterministic local holdout; a generic-model comparison is still pending.
 
 ### [x] Phase 6: LangGraph Agent Orchestration
 
@@ -66,3 +67,4 @@
 
 - [x] Write automated metric runners (IoU, accuracy, F1).
 - [ ] Benchmark the registry against held-out evaluation subsets.
+  - Current evidence: the metric runner executes successfully, but the available 10-row manifest contains earlier predictions and is not a representative registry benchmark.
