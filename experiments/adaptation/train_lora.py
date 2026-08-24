@@ -1,8 +1,10 @@
 """LoRA adaptation entry point for training on RSVQA-style data."""
 import argparse
 import json
+import random
 import re
 from pathlib import Path
+
 from PIL import Image
 
 
@@ -20,6 +22,39 @@ def normalize_answer(raw):
     return text
 
 
+def split_train_val(records, val_ratio=0.2, seed=42):
+    """Return a deterministic train/validation split for small RSVQA datasets."""
+    shuffled = list(records)
+    random.Random(seed).shuffle(shuffled)
+    split_index = max(1, int(len(shuffled) * (1 - val_ratio)))
+    return shuffled[:split_index], shuffled[split_index:]
+
+
+def evaluate_model(model, processor, records, device):
+    """Run a lightweight validation pass and return accuracy on the provided records."""
+    if not records:
+        return {"accuracy": 0.0, "count": 0}
+
+    model.eval()
+    correct = 0
+    with __import__("torch").no_grad():
+        for rec in records:
+            image = Image.open(rec["image"]).convert("RGB")
+            inputs = processor(images=image, text=rec["question"], return_tensors="pt").to(device)
+            generated = model.generate(
+                **inputs,
+                max_new_tokens=32,
+                num_beams=4,
+                do_sample=False,
+            )
+            pred = normalize_answer(processor.decode(generated[0], skip_special_tokens=True))
+            target = normalize_answer(rec["answer"])
+            if pred == target:
+                correct += 1
+    model.train()
+    return {"accuracy": round(correct / len(records), 4), "count": len(records), "correct": correct}
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train-jsonl", required=True)
@@ -29,7 +64,9 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
+    parser.add_argument("--val-ratio", type=float, default=0.2)
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -46,7 +83,10 @@ def main():
         "question": str(rec["question"]).strip(),
         "answer": normalize_answer(rec["answer"]),
     } for rec in records]
-    
+    train_records, val_records = split_train_val(records, val_ratio=args.val_ratio, seed=args.seed)
+    if len(train_records) == 0:
+        raise ValueError("Validation split consumed all records; reduce --val-ratio.")
+
     try:
         import torch
         from torch.utils.data import Dataset, DataLoader
@@ -110,10 +150,11 @@ def main():
         inputs["labels"] = labels
         return inputs
 
-    dataset = RSVQADataSet(records)
+    dataset = RSVQADataSet(train_records)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    best_val_accuracy = -1.0
 
     print("Starting training loop...")
     for epoch in range(args.epochs):
@@ -121,9 +162,7 @@ def main():
         for step, batch in enumerate(dataloader):
             optimizer.zero_grad()
             
-            # Move inputs to device
             batch_inputs = {k: v.to(device) for k, v in batch.items()}
-            
             outputs = model(**batch_inputs)
             loss = outputs.loss
             loss.backward()
@@ -136,13 +175,27 @@ def main():
         avg_loss = epoch_loss / len(dataloader)
         print(f"Epoch {epoch+1}/{args.epochs} completed. Average Loss: {avg_loss:.4f}")
 
-    print(f"Saving fine-tuned adapter to {args.output_dir}...")
+        val_metrics = evaluate_model(model, processor, val_records, device)
+        print(f"Validation accuracy after epoch {epoch+1}: {val_metrics['accuracy']} ({val_metrics['correct']}/{val_metrics['count']})")
+
+        if val_metrics["accuracy"] > best_val_accuracy:
+            best_val_accuracy = val_metrics["accuracy"]
+            Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(args.output_dir)
+            processor.save_pretrained(args.output_dir)
+            Path(args.output_dir, "run_config.json").write_text(json.dumps({**vars(args), "best_val_accuracy": best_val_accuracy}, indent=2))
+
+    if best_val_accuracy < 0:
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        model.save_pretrained(args.output_dir)
+        processor.save_pretrained(args.output_dir)
+        Path(args.output_dir, "run_config.json").write_text(json.dumps({**vars(args), "best_val_accuracy": 0.0}, indent=2))
+
+    print(f"Saving final adapter to {args.output_dir}...")
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     model.save_pretrained(args.output_dir)
     processor.save_pretrained(args.output_dir)
-    
-    # Save the run config
-    Path(args.output_dir, "run_config.json").write_text(json.dumps(vars(args), indent=2))
+    Path(args.output_dir, "run_config.json").write_text(json.dumps({**vars(args), "best_val_accuracy": best_val_accuracy}, indent=2))
     print("Training finished successfully!")
 
 if __name__ == "__main__":
