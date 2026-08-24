@@ -41,13 +41,14 @@
 - [ ] Export and load adapted checkpoints in specialist models.
 - [ ] Run benchmarks comparing the adapted model with a generic VLM.
 
-### [/] Phase 6: LangGraph Agent Orchestration
+### [x] Phase 6: LangGraph Agent Orchestration
 
 - [x] Create query task classifier router (`backend/agent/task_classifier.py`).
 - [x] Define and implement an auditable deterministic flow: Validator → Router → specialist execution → evidence fusion.
-- [ ] Replace the deterministic flow with a persisted LangGraph `StateGraph` when LangGraph runtime/state persistence is selected.
+- [x] Replace the deterministic flow with a persisted LangGraph `StateGraph` supporting node transitions, conditional edges, and thread-level state persistence (`backend/agent/graph.py`, `backend/agent/state.py`).
 - [x] Expose `/api/v1/agent` returning answer, confidence, overlays, and execution trace.
-- [x] Verify single-image and bi-temporal agent routing.
+- [x] Verify single-image, bi-temporal, and optical-SAR agent routing with StateGraph workflow.
+
 
 ### [x] Phase 7: Evidence Fusion & Reports
 

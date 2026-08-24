@@ -4,16 +4,12 @@ import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
-from backend.agent.task_classifier import TaskClassifier
-from backend.agent.tool_registry import tool_registry
+from backend.agent.graph import agent_graph
+from backend.agent.state import AgentState
 from backend.config import settings
-from backend.evidence.report import generate_pdf_report
-from backend.preprocessing.registration import ImageRegistration
-from backend.validation.validator import InputValidator
 
 logger = logging.getLogger("satquery.api.agent")
 router = APIRouter()
-classifier = TaskClassifier()
 
 
 async def _persist(file: UploadFile, index: int) -> str:
@@ -32,8 +28,9 @@ async def execute_agent(
     query: str = Form(...),
     analysis_type: str = Form("auto"),
     include_report: bool = Form(False),
+    thread_id: str | None = Form(None),
 ):
-    """Validate input, route to a specialist, and return auditable evidence."""
+    """Execute LangGraph StateGraph agent for remote sensing image analysis."""
     if not query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
     paths = []
@@ -44,54 +41,29 @@ async def execute_agent(
         if file_2:
             second = await _persist(file_2, 2)
             paths.append(second)
-        for path in paths:
-            valid, error, _ = InputValidator.validate_image(path)
-            if not valid:
-                raise HTTPException(status_code=400, detail=f"Image validation failed: {error}")
-        decision = classifier.classify(query, len(paths), analysis_type)
-        if decision.task in {"change", "optical_sar"} and not second:
-            raise HTTPException(status_code=400, detail=f"{decision.task} analysis requires two images.")
-        if second:
-            valid, error, pair_metadata = ImageRegistration.validate_pair(first, second)
-            if not valid:
-                raise HTTPException(status_code=400, detail=f"Pair validation failed: {error}")
-        else:
-            pair_metadata = None
-        tool = tool_registry.get_tool(decision.task if decision.task not in {"change", "optical_sar"} else decision.task)
-        if decision.task == "change":
-            detection = tool_registry.get_tool("change_detection")
-            change_vqa = tool_registry.get_tool("change_vqa")
-            if not detection or not change_vqa:
-                raise HTTPException(status_code=503, detail="Change tools are unavailable.")
-            model_inputs = {"image_path_a": first, "image_path_b": second}
-            detected, answered = detection.run(model_inputs), change_vqa.run({**model_inputs, "question": query})
-            result = {
-                "answer": answered["answer"],
-                "confidence": answered["confidence"],
-                "change_summary": detected["change_summary"],
-                "overlay_b64": detected["change_map_b64"],
-                "evidence": {"change_detection": detected["evidence"], "change_vqa": answered["evidence"]},
-                "execution_trace": {"steps": [detected["execution_trace"], answered["execution_trace"]]},
-            }
-        elif decision.task == "optical_sar":
-            if not tool:
-                raise HTTPException(status_code=503, detail="Optical-SAR fusion tool is unavailable.")
-            result = tool.run({"optical_path": first, "sar_path": second, "query": query})
-            result["answer"] = result["summary"]
-        else:
-            if not tool:
-                raise HTTPException(status_code=503, detail=f"{decision.task} tool is unavailable.")
-            params = {"image_path": first}
-            if decision.task == "vqa":
-                params["question"] = query
-            elif decision.task == "grounding":
-                params["query"] = query
-            result = tool.run(params)
-            result["answer"] = result.get("answer") or result.get("caption") or f"Detected {result.get('box_count', 0)} regions."
-        result.update({"status": "success", "query": query, "route": {"task": decision.task, "reason": decision.reason}, "pair_metadata": pair_metadata})
-        if include_report:
-            result["report_pdf_b64"] = generate_pdf_report("SatQuery AI Evidence Report", result)
-        return result
+
+        session_id = thread_id or str(uuid.uuid4())
+        initial_state: AgentState = {
+            "query": query,
+            "image_count": len(paths),
+            "requested_task": analysis_type,
+            "file_1_path": first,
+            "file_2_path": second,
+            "include_report": include_report,
+            "thread_id": session_id,
+        }
+
+        graph_result = agent_graph.invoke(
+            initial_state,
+            config={"configurable": {"thread_id": session_id}},
+        )
+
+        final_output = graph_result.get("final_output") or {}
+        if final_output.get("status") == "error":
+            raise HTTPException(status_code=400, detail=final_output.get("detail", "Execution failed"))
+
+        final_output["thread_id"] = session_id
+        return final_output
     except HTTPException:
         raise
     except Exception as exc:
@@ -101,3 +73,4 @@ async def execute_agent(
         for path in paths:
             if os.path.exists(path):
                 os.remove(path)
+
