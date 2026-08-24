@@ -1,0 +1,20 @@
+[
+  {
+    "id": "rsvqa_0",
+    "image_name": "rsvqa_sample_0.png",
+    "question": "Is it a rural or an urban area",
+    "answer": "rural"
+  },
+  {
+    "id": "rsvqa_1",
+    "image_name": "rsvqa_sample_1.png",
+    "question": "What is the number of commercial buildings?",
+    "answer": "5"
+  },
+  {
+    "id": "rsvqa_2",
+    "image_name": "rsvqa_sample_2.png",
+    "question": "How many farmlands are there?",
+    "answer": "62"
+  }
+]
