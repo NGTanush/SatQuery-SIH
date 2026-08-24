@@ -1,8 +1,24 @@
 """LoRA adaptation entry point for training on RSVQA-style data."""
 import argparse
 import json
+import re
 from pathlib import Path
 from PIL import Image
+
+
+def normalize_answer(raw):
+    """Normalize answer text so equivalent labels are treated consistently."""
+    if raw is None:
+        return ""
+    text = str(raw).strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    text = text.strip(" .,!?:;\"'[](){}<>")
+    if text:
+        text = text.replace("’", "'")
+        text = text.replace("-", " ")
+        text = re.sub(r"\s+", " ", text).strip()
+    return text
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -24,6 +40,12 @@ def main():
     missing = required - records[0].keys()
     if missing:
         raise ValueError(f"Dataset records must include: {sorted(required)}; missing {sorted(missing)}")
+
+    records = [{
+        "image": rec["image"],
+        "question": str(rec["question"]).strip(),
+        "answer": normalize_answer(rec["answer"]),
+    } for rec in records]
     
     try:
         import torch

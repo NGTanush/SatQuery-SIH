@@ -52,14 +52,16 @@ This contains the adapter weights and processor files required to load the PEFT 
 
 ## Held-out evaluation
 
-A real held-out evaluation was run on the final 10 records of the RSVQA training split.
+A real held-out evaluation was run on the final 10 records of the RSVQA training split after extending the adapter training to 10 epochs.
 
 - Hold-out set size: 10
-- Correct predictions: 3
-- Accuracy: 0.30
-- Observed model output on a sample question: `rural` for the prompt “Is it a rural or an urban area”
+- Correct predictions: 7
+- Accuracy: 0.70
+- Example outputs:
+  - “Is it a rural or an urban area” -> `rural`
+  - “Are there more roads than commercial buildings?” -> `yes`
 
-This indicates the adapter is functioning, but the model is not yet strong enough for claim of production-grade benchmark performance. The next step is to improve the training data and/or training regime before reporting stronger evaluation metrics.
+This indicates the adapter is functioning and improved substantially after longer training, though it is still a prototype and should not yet be described as production-grade benchmark performance.
 
 ## Notes
 
