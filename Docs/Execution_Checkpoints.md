@@ -34,10 +34,10 @@ and never substituted with fabricated benchmark claims.
 
 ## Current status
 
-- C1 — partially complete: BIFOLD BigEarthNet v2.0 selected; streaming manifest preparation, Colab notebook, LoRA entry point, and artifact contract added. A real image-map-backed training run remains required.
+- C1 — complete: BIFOLD BigEarthNet v2.0 selected; streaming manifest preparation, Colab notebook, LoRA entry point, artifact contract, and a real CUDA RSVQA adapter run are recorded in `Docs/training_runs/`.
 - C2 — complete: transparent classifier, LangGraph StateGraph engine, thread-level checkpointing, and unified agent route verified.
 - C3 — complete: mask overlay and PDF evidence export implemented.
-- C4 — partially complete: metric runner implemented; held-out evaluation remains required.
-- C5 — complete: React/Leaflet dashboard builds successfully.
-- C6 — awaits the selected training data, adapter checkpoint, and GPU runtime.
+- C4 — partially complete: metric runner executes against the available 10-row manifest, but a representative registry benchmark and adapted-versus-generic comparison remain required.
+- C5 — implemented: React/Leaflet dashboard now includes upload, paired-image, result, trace, report, and evidence-view workflows; production build requires Node/npm dependencies, unavailable in the current environment.
+- C6 — partially complete: selected training data, adapter checkpoint, GPU run, and API/UI integration are present; a larger real RSVQA/BigEarthNet rehearsal remains.
 
