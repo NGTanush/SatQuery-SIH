@@ -24,13 +24,18 @@ def normalize_answer(raw):
 
 def split_train_val(records, val_ratio=0.2, seed=42):
     """Return a deterministic train/validation split for small RSVQA datasets."""
+    if not 0 < val_ratio < 1:
+        raise ValueError("val_ratio must be between 0 and 1.")
+    if len(records) < 2:
+        raise ValueError("At least two records are required for a train/validation split.")
     shuffled = list(records)
     random.Random(seed).shuffle(shuffled)
     split_index = max(1, int(len(shuffled) * (1 - val_ratio)))
+    split_index = min(split_index, len(shuffled) - 1)
     return shuffled[:split_index], shuffled[split_index:]
 
 
-def evaluate_model(model, processor, records, device):
+def evaluate_model(model, processor, records, device, max_new_tokens=32):
     """Run a lightweight validation pass and return accuracy on the provided records."""
     if not records:
         return {"accuracy": 0.0, "count": 0}
@@ -43,7 +48,7 @@ def evaluate_model(model, processor, records, device):
             inputs = processor(images=image, text=rec["question"], return_tensors="pt").to(device)
             generated = model.generate(
                 **inputs,
-                max_new_tokens=32,
+                max_new_tokens=max_new_tokens,
                 num_beams=4,
                 do_sample=False,
             )
@@ -61,10 +66,11 @@ def parse_args():
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--base-model", default="Salesforce/blip-vqa-base")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
     parser.add_argument("--val-ratio", type=float, default=0.2)
+    parser.add_argument("--max-new-tokens", type=int, default=16)
     return parser.parse_args()
 
 
@@ -77,6 +83,10 @@ def main():
     missing = required - records[0].keys()
     if missing:
         raise ValueError(f"Dataset records must include: {sorted(required)}; missing {sorted(missing)}")
+    for index, record in enumerate(records[1:], start=1):
+        missing = required - record.keys()
+        if missing:
+            raise ValueError(f"Dataset record {index} is missing: {sorted(missing)}")
 
     records = [{
         "image": rec["image"],
@@ -102,13 +112,12 @@ def main():
     print("Loading model and processor...")
     processor = BlipProcessor.from_pretrained(args.base_model)
     model = BlipForQuestionAnswering.from_pretrained(args.base_model)
-    
-    # Configure LoRA. BlipForQuestionAnswering decoder attention layers have query/value projections.
+
     lora_config = LoraConfig(
-        r=8, 
-        lora_alpha=16, 
-        lora_dropout=0.05, 
-        bias="none", 
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.05,
+        bias="none",
         target_modules=["query", "value"]
     )
     
@@ -153,29 +162,30 @@ def main():
     dataset = RSVQADataSet(train_records)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
     best_val_accuracy = -1.0
 
     print("Starting training loop...")
     for epoch in range(args.epochs):
         epoch_loss = 0.0
+        model.train()
         for step, batch in enumerate(dataloader):
             optimizer.zero_grad()
-            
+
             batch_inputs = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch_inputs)
             loss = outputs.loss
             loss.backward()
             optimizer.step()
-            
+
             epoch_loss += loss.item()
             if (step + 1) % 5 == 0 or step == len(dataloader) - 1:
                 print(f"Epoch {epoch+1}/{args.epochs} | Step {step+1}/{len(dataloader)} | Loss: {loss.item():.4f}")
-                
+
         avg_loss = epoch_loss / len(dataloader)
         print(f"Epoch {epoch+1}/{args.epochs} completed. Average Loss: {avg_loss:.4f}")
 
-        val_metrics = evaluate_model(model, processor, val_records, device)
+        val_metrics = evaluate_model(model, processor, val_records, device, args.max_new_tokens)
         print(f"Validation accuracy after epoch {epoch+1}: {val_metrics['accuracy']} ({val_metrics['correct']}/{val_metrics['count']})")
 
         if val_metrics["accuracy"] > best_val_accuracy:
@@ -191,12 +201,9 @@ def main():
         processor.save_pretrained(args.output_dir)
         Path(args.output_dir, "run_config.json").write_text(json.dumps({**vars(args), "best_val_accuracy": 0.0}, indent=2))
 
-    print(f"Saving final adapter to {args.output_dir}...")
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(args.output_dir)
-    processor.save_pretrained(args.output_dir)
-    Path(args.output_dir, "run_config.json").write_text(json.dumps({**vars(args), "best_val_accuracy": best_val_accuracy}, indent=2))
-    print("Training finished successfully!")
+    if best_val_accuracy < 0:
+        raise RuntimeError("Training completed without producing a validated checkpoint.")
+    print(f"Best validated adapter saved to {args.output_dir} with accuracy {best_val_accuracy:.4f}.")
 
 if __name__ == "__main__":
     main()

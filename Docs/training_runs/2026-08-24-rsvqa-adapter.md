@@ -12,8 +12,8 @@
 python experiments/adaptation/train_lora.py \
   --train-jsonl datasets/rsvqa/train.jsonl \
   --output-dir checkpoints/rsvqa-blip-lora \
-  --epochs 1 \
-  --batch-size 1 \
+  --epochs 8 \
+  --batch-size 2 \
   --learning-rate 5e-5 \
   --seed 42
 ```
@@ -21,9 +21,11 @@ python experiments/adaptation/train_lora.py \
 ## Hyperparameters
 
 - seed: 42
-- epochs: 1
-- batch size: 1
+- epochs: 8
+- batch size: 2
 - learning rate: 5e-5
+- validation ratio: 0.2
+- max new tokens: 16
 - LoRA rank: 8
 - LoRA alpha: 16
 - LoRA dropout: 0.05
@@ -38,9 +40,10 @@ Observed output summary:
 - Device: cuda
 - PEFT model initialized
 - Trainable parameters: 1,179,648
-- Epoch 1/1 completed
-- Average loss: 1.9846
-- Training finished successfully!
+- Epoch 8/8 completed
+- Average loss: 1.3376
+- Best validation accuracy: 0.40 (4/10)
+- Best validated adapter saved successfully
 
 ## Artifact
 
