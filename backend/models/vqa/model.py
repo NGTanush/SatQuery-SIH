@@ -23,7 +23,11 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
         self.processor = None
         self.model = None
         self.device = "cpu"
-        self._fallback_active = False
+        self._fallback_active = self.use_fallback
+
+        if self.use_fallback:
+            logger.info("VQA fallback explicitly enabled; skipping Hugging Face model loading.")
+            return
 
         # Attempt to load PyTorch & Transformers
         try:

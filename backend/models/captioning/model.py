@@ -22,7 +22,11 @@ class RemoteSensingCaptionModel(BaseSpecialistModel):
         self.processor = None
         self.model = None
         self.device = "cpu"
-        self._fallback_active = False
+        self._fallback_active = settings.VQA_USE_FALLBACK
+
+        if self._fallback_active:
+            logger.info("Captioning fallback explicitly enabled; skipping Hugging Face model loading.")
+            return
 
         # Attempt to load PyTorch & Transformers
         try:

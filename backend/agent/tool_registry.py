@@ -4,6 +4,9 @@ from backend.models.base import BaseSpecialistModel
 from backend.models.vqa.model import RemoteSensingVQAModel
 from backend.models.captioning.model import RemoteSensingCaptionModel
 from backend.models.grounding.model import RemoteSensingGroundingModel
+from backend.models.change_detection.model import ChangeDetectionModel
+from backend.models.change_vqa.model import ChangeVQAModel
+from backend.models.optical_sar.model import OpticalSARFusionModel
 
 logger = logging.getLogger("satquery.registry")
 
@@ -24,6 +27,9 @@ class ToolRegistry:
             self.register("vqa", RemoteSensingVQAModel())
             self.register("caption", RemoteSensingCaptionModel())
             self.register("grounding", RemoteSensingGroundingModel())
+            self.register("change_detection", ChangeDetectionModel())
+            self.register("change_vqa", ChangeVQAModel())
+            self.register("optical_sar", OpticalSARFusionModel())
             logger.info("Successfully registered specialist models.")
         except Exception as e:
             logger.error(f"Error registering specialist models: {str(e)}")

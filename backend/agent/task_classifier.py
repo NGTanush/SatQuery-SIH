@@ -1,0 +1,29 @@
+"""Transparent intent routing for SatQuery specialist tools."""
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class RouteDecision:
+    task: str
+    reason: str
+
+
+class TaskClassifier:
+    """Deterministic, auditable router; replaceable with an LLM classifier later."""
+
+    def classify(self, query: str, image_count: int, requested_task: str = "auto") -> RouteDecision:
+        allowed = {"vqa", "caption", "grounding", "change", "optical_sar"}
+        if requested_task != "auto":
+            if requested_task not in allowed:
+                raise ValueError(f"Unsupported analysis_type '{requested_task}'.")
+            return RouteDecision(requested_task, "Explicit analysis_type supplied by caller.")
+        text = query.lower()
+        if image_count == 2:
+            if any(word in text for word in ("sar", "radar", "backscatter", "optical-sar", "optical sar")):
+                return RouteDecision("optical_sar", "Two inputs plus optical/SAR terminology.")
+            return RouteDecision("change", "Two inputs default to bi-temporal analysis.")
+        if any(word in text for word in ("caption", "describe this scene", "scene description")):
+            return RouteDecision("caption", "Single image plus scene-description intent.")
+        if any(word in text for word in ("locate", "highlight", "where is", "bounding box", "ground")):
+            return RouteDecision("grounding", "Single image plus region-localization intent.")
+        return RouteDecision("vqa", "Single image defaults to visual question answering.")

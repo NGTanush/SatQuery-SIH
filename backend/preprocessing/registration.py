@@ -88,3 +88,22 @@ class ImageRegistration:
         img_b_resized.save(resized_path)
 
         return image_path_a, resized_path
+
+    @staticmethod
+    def validate_optical_sar_pair(
+        optical_path: str, sar_path: str
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """Validate a co-registered optical/SAR pair for fusion.
+
+        Pixel-wise fusion needs images that cover the same grid. Different
+        channel counts are expected (RGB optical versus single-band SAR), so
+        only readability and spatial dimensions are enforced here.
+        """
+        is_valid, error, metadata = ImageRegistration.validate_pair(optical_path, sar_path)
+        if not is_valid:
+            return is_valid, error, metadata
+
+        metadata["pair_type"] = "optical_sar"
+        metadata["optical_expected_bands"] = "3 or more"
+        metadata["sar_expected_bands"] = "1 or more"
+        return True, "", metadata

@@ -12,3 +12,7 @@ opencv-python-headless>=4.7.0
 # gdal >=3.6.0      # Optional, system-level dependency required by rasterio
 pytest>=7.3.0
 requests>=2.31.0
+# Optional Phase 5 training dependencies (install in a GPU/Colab environment)
+peft>=0.10.0
+accelerate>=0.30.0
+datasets>=2.19.0

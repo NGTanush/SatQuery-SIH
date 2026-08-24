@@ -46,3 +46,15 @@ python3 -m uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The interactive API documentation will be available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+## Implemented API routes
+
+- `POST /api/v1/vqa` — single-image visual question answering.
+- `POST /api/v1/caption` — single-image scene captioning.
+- `POST /api/v1/grounding` — text-guided bounding-box grounding.
+- `POST /api/v1/change` — paired T1/T2 change map plus a question-grounded answer.
+- `POST /api/v1/optical-sar` — co-registered optical/SAR fusion for water and built-up evidence.
+
+Set `VQA_USE_FALLBACK=true` (the default) for deterministic local/offline
+pixel-analysis fallbacks. Set it to `false` only when the Hugging Face model
+weights are available and model-backed inference is intended.
