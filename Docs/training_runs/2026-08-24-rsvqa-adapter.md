@@ -22,7 +22,7 @@ python experiments/adaptation/train_lora.py \
 
 - seed: 42
 - epochs: 8
-- batch size: 2
+- batch size: 1
 - learning rate: 5e-5
 - validation ratio: 0.2
 - max new tokens: 16
@@ -41,8 +41,8 @@ Observed output summary:
 - PEFT model initialized
 - Trainable parameters: 1,179,648
 - Epoch 8/8 completed
-- Average loss: 1.3376
-- Best validation accuracy: 0.40 (4/10)
+- Average loss: 1.0638
+- Best validation accuracy: 0.50 (5/10, epoch 5)
 - Best validated adapter saved successfully
 
 ## Artifact
@@ -58,8 +58,8 @@ This contains the adapter weights and processor files required to load the PEFT 
 A real validation evaluation was run on a deterministic 20% validation split from the RSVQA training data after improving the LoRA pipeline.
 
 - Validation set size: 10
-- Correct predictions: 4
-- Accuracy: 0.40
+- Correct predictions: 5
+- Accuracy: 0.50
 - Example outputs:
   - “Is it a rural or an urban area” -> `rural`
   - “Are there more roads than commercial buildings?” -> `yes`
@@ -71,3 +71,4 @@ This indicates the adapter is functioning, but the current model remains a proto
 - This is a real training run, not a placeholder.
 - The adapter is usable for a smoke test and prototype integration.
 - Production benchmark claims should wait for stronger held-out results and a more representative split.
+- A 16-epoch, 1e-5 learning-rate trial also reached 0.40; the selected 8-epoch, batch-1, 5e-5 run was retained because it reached 0.50 on the fixed split.
