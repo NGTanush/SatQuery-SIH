@@ -50,8 +50,19 @@ Checkpoint directory:
 
 This contains the adapter weights and processor files required to load the PEFT model.
 
+## Held-out evaluation
+
+A real held-out evaluation was run on the final 10 records of the RSVQA training split.
+
+- Hold-out set size: 10
+- Correct predictions: 3
+- Accuracy: 0.30
+- Observed model output on a sample question: `rural` for the prompt “Is it a rural or an urban area”
+
+This indicates the adapter is functioning, but the model is not yet strong enough for claim of production-grade benchmark performance. The next step is to improve the training data and/or training regime before reporting stronger evaluation metrics.
+
 ## Notes
 
 - This is a real training run, not a placeholder.
-- The project still requires separate held-out benchmark evaluation to report final accuracy and F1 metrics.
-- The adapter is suitable for use in the project’s VQA pipeline when loaded through the PEFT model integration.
+- The adapter is usable for a smoke test and prototype integration.
+- Production benchmark claims should wait for stronger held-out results and a more representative split.
