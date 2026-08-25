@@ -113,11 +113,13 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
                 "evidence": {
                     "model_source": "Hugging Face Hub",
                     "model_name": self.model_name,
+                    "adapter_path": settings.VQA_ADAPTER_PATH,
                     "device": self.device
                 },
                 "execution_trace": {
                     "task": "Visual Question Answering (VQA)",
-                    "model": f"{self.name} (HF BLIP)",
+                    "model": f"{self.name} (HF BLIP + LoRA adapter)",
+                    "adapter_loaded": bool(settings.VQA_ADAPTER_PATH),
                     "execution_time_seconds": round(elapsed, 4),
                     "fallback_active": False
                 }
