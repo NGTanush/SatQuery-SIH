@@ -84,6 +84,8 @@ def test_direct_stategraph_vqa_and_grounding():
         assert out_ground["status"] == "success"
         assert out_ground["route"]["task"] == "grounding"
         assert len(out_ground.get("bounding_boxes", [])) >= 1
+        assert out_ground.get("annotated_image_b64")
+        assert out_ground.get("overlay_b64") == out_ground["annotated_image_b64"]
     finally:
         if os.path.exists(img_path):
             os.remove(img_path)
@@ -109,6 +111,7 @@ def test_direct_stategraph_optical_sar():
         assert output["status"] == "success"
         assert output["route"]["task"] == "optical_sar"
         assert output.get("overlay_b64") is not None
+        assert output["pair_metadata"]["pair_type"] == "optical_sar"
 
         # Verify state checkpoint history was recorded
         history = agent_graph.get_state_history("sar_thread")

@@ -51,7 +51,14 @@ def validate_inputs_node(state: AgentState) -> Dict[str, Any]:
                 "error_message": f"Secondary image validation failed: {error_2}",
                 "execution_trace": trace + [{"node": "validate_inputs", "status": "failed", "error": error_2}],
             }
-        valid_pair, error_pair, pair_metadata = ImageRegistration.validate_pair(file_1, file_2)
+        query = (state.get("query") or "").lower()
+        is_optical_sar = "sar" in query and "optical" in query
+        pair_validator = (
+            ImageRegistration.validate_optical_sar_pair
+            if is_optical_sar
+            else ImageRegistration.validate_pair
+        )
+        valid_pair, error_pair, pair_metadata = pair_validator(file_1, file_2)
         if not valid_pair:
             return {
                 "is_valid": False,
@@ -65,6 +72,7 @@ def validate_inputs_node(state: AgentState) -> Dict[str, Any]:
         "status": "passed",
         "image_count": 2 if file_2 else 1,
         "primary_format": meta_1.get("format") if meta_1 else "unknown",
+        "pair_validator": "optical_sar" if file_2 and is_optical_sar else "spatial",
     }
     return {
         "is_valid": True,
@@ -268,9 +276,21 @@ def fuse_evidence_node(state: AgentState) -> Dict[str, Any]:
     }
 
     # Pass through task-specific visual artifacts
-    for key in ("overlay_b64", "change_map_b64", "change_summary", "bounding_boxes", "box_count", "target"):
+    for key in (
+        "overlay_b64",
+        "annotated_image_b64",
+        "change_map_b64",
+        "change_summary",
+        "bounding_boxes",
+        "box_count",
+        "target",
+        "target_detected",
+    ):
         if key in task_result and key not in final_payload:
             final_payload[key] = task_result[key]
+
+    if "overlay_b64" not in final_payload and final_payload.get("annotated_image_b64"):
+        final_payload["overlay_b64"] = final_payload["annotated_image_b64"]
 
     if state.get("include_report"):
         final_payload["report_pdf_b64"] = generate_pdf_report("SatQuery AI Evidence Report", final_payload)

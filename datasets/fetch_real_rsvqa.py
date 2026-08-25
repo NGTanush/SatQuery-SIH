@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import json
+import argparse
 from PIL import Image
 
 # Add workspace directory to sys.path
@@ -10,24 +11,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("satquery.datasets.real")
 
-def fetch_samples():
+def fetch_samples(count=50, split="validation", output_dir=None):
     try:
         from datasets import load_dataset
         logger.info("Loading dmarsili/RSVQA-LR-2k dataset from HuggingFace...")
-        # Load low-resolution RSVQA dataset (small split or stream if possible)
-        dataset = load_dataset("dmarsili/RSVQA-LR-2k", split="validation", streaming=True)
+        dataset = load_dataset("dmarsili/RSVQA-LR-2k", split=split, streaming=True)
         
         # Get 50 samples
         iterator = iter(dataset)
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        rsvqa_dir = os.path.join(base_dir, "rsvqa")
+        rsvqa_dir = output_dir or os.path.join(base_dir, "rsvqa")
         os.makedirs(rsvqa_dir, exist_ok=True)
         
         logger.info("Extracting sample images and QA pairs...")
         samples_metadata = []
         jsonl_lines = []
         
-        for idx in range(50):
+        for idx in range(count):
             try:
                 sample = next(iterator)
                 img = sample.get("image")
@@ -81,4 +81,11 @@ def fetch_samples():
         logger.info("Fallback: Proceeding with local offline generated dataset.")
 
 if __name__ == "__main__":
-    fetch_samples()
+    parser = argparse.ArgumentParser(description="Fetch real RSVQA image/Q&A records.")
+    parser.add_argument("--count", type=int, default=50)
+    parser.add_argument("--split", default="validation")
+    parser.add_argument("--output-dir", default=None)
+    args = parser.parse_args()
+    if args.count < 1:
+        parser.error("--count must be at least 1")
+    fetch_samples(count=args.count, split=args.split, output_dir=args.output_dir)

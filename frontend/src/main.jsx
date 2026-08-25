@@ -12,6 +12,7 @@ function FileCard({ label, hint, file, onChange, onClear }) {
   const [preview, setPreview] = useState(null);
   useEffect(() => {
     if (!file) { setPreview(null); return undefined; }
+    if (!file.type.startsWith('image/') || /\.tiff?$/i.test(file.name)) { setPreview(null); return undefined; }
     const url = URL.createObjectURL(file);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
@@ -20,7 +21,7 @@ function FileCard({ label, hint, file, onChange, onClear }) {
     <div className="file-card-heading"><span className="eyebrow">{label}</span>{file && <button className="text-button" type="button" onClick={onClear}>Remove</button>}</div>
     <label className="file-drop">
       {preview ? <img src={preview} alt={`${label} preview`} /> : <span className="upload-mark">+</span>}
-      <span className="file-copy"><strong>{file ? file.name : 'Drop an image here'}</strong><small>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : hint}</small></span>
+      <span className="file-copy"><strong>{file ? file.name : 'Drop an image here'}</strong><small>{file ? (/\.tiff?$/i.test(file.name) ? 'TIFF / server preview' : `${(file.size / 1024 / 1024).toFixed(1)} MB`) : hint}</small></span>
       <input type="file" accept="image/*,.tif,.tiff" onChange={(event) => onChange(event.target.files?.[0])} />
     </label>
   </div>;
@@ -56,11 +57,16 @@ function App() {
   const overlay = result?.overlay_b64 || result?.annotated_image_b64;
   const [sourcePreview, setSourcePreview] = useState(null);
   useEffect(() => {
-    if (!first) { setSourcePreview(null); return undefined; }
+    if (!first || /\.tiff?$/i.test(first.name)) { setSourcePreview(null); return undefined; }
     const url = URL.createObjectURL(first);
     setSourcePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [first]);
+  const boxes = (result?.bounding_boxes || []).map((box) => {
+    const coordinates = Array.isArray(box) ? box : box?.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length !== 4) return null;
+    return coordinates.map(Number);
+  }).filter((box) => box && box.every(Number.isFinite));
   return <main className="app-shell">
     <header className="topbar"><a className="brand" href="/" aria-label="SatQuery home"><span className="brand-mark">SQ</span><span>SatQuery <em>AI</em></span></a><div className="system-status"><span className="status-dot" /> Analysis workspace <span className="status-divider" /> v0.1</div></header>
     <section className="intro"><div><p className="kicker">Remote sensing intelligence</p><h1>Read the landscape<br /><span>with evidence.</span></h1></div><p className="intro-copy">Upload one or two satellite images, ask a focused question, and receive a routed analysis with an auditable result.</p></section>
@@ -78,7 +84,7 @@ function App() {
         {result && <div className="result-content"><div className="answer-block"><span className="eyebrow">Answer</span><p>{result.answer || result.detail}</p></div><div className="metrics"><Metric label="Task" value={route.task} /><Metric label="Confidence" value={result.confidence ? `${Math.round(result.confidence * 100)}%` : '--'} /><Metric label="Steps" value={trace.steps?.length} /></div><div className="trace-block"><div className="trace-heading"><span>Execution trace</span><small>{trace.fallback_active ? 'Fallback active' : 'Specialist route'}</small></div><details><summary>View route details</summary><pre>{JSON.stringify(route || trace, null, 2)}</pre></details></div>{result.report_pdf_b64 && <button className="report-button" type="button" onClick={downloadReport}>Download PDF report <span>-&gt;</span></button>}</div>}
       </aside>
     </div>
-    {first && <section className="viewer-section"><div className="viewer-header"><div><p className="section-index">03 / EVIDENCE VIEW</p><h2>Spatial result</h2></div><span>{overlay ? 'Annotated output' : 'Source image'}</span></div><div className="map-frame"><MapContainer className="map" center={[0, 0]} zoom={1} crs={L.CRS.Simple} scrollWheelZoom={false}><ImageOverlay url={overlay ? `data:image/png;base64,${overlay}` : sourcePreview} bounds={[[-100, -100], [100, 100]]} />{result?.bounding_boxes?.map((box, index) => <Rectangle key={index} bounds={[[100 - box.coordinates[0], box.coordinates[1] - 100], [100 - box.coordinates[2], box.coordinates[3] - 100]]} pathOptions={{ color: '#ef7657', weight: 2, fillOpacity: 0.12 }} />)}</MapContainer><div className="map-legend"><span className="legend-swatch" /> Detected region</div></div></section>}
+    {first && <section className="viewer-section"><div className="viewer-header"><div><p className="section-index">03 / EVIDENCE VIEW</p><h2>Spatial result</h2></div><span>{overlay ? 'Annotated output' : sourcePreview ? 'Source image' : 'Preview unavailable'}</span></div>{(overlay || sourcePreview) ? <div className="map-frame"><MapContainer className="map" center={[0, 0]} zoom={1} crs={L.CRS.Simple} scrollWheelZoom={false}><ImageOverlay url={overlay ? `data:image/png;base64,${overlay}` : sourcePreview} bounds={[[-100, -100], [100, 100]]} />{boxes.map((box, index) => <Rectangle key={index} bounds={[[100 - box[0], box[1] - 100], [100 - box[2], box[3] - 100]]} pathOptions={{ color: '#ef7657', weight: 2, fillOpacity: 0.12 }} />)}</MapContainer><div className="map-legend"><span className="legend-swatch" /> Detected region</div></div> : <div className="no-preview">TIFF evidence is processed by the API and will appear here when an annotated output is returned.</div>}</section>}
     <footer><span>SatQuery AI / Earth observation toolkit</span><span>Results are advisory and should be reviewed by an analyst.</span></footer>
   </main>;
 }
