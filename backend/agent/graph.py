@@ -237,6 +237,17 @@ def execute_optical_sar_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
+def execute_land_cover_node(state: AgentState) -> Dict[str, Any]:
+    """Execute multi-label BigEarthNet v2.0 land-cover classification."""
+    tool = tool_registry.get_tool("land_cover")
+    trace: List[Dict[str, Any]] = list(state.get("execution_trace") or [])
+    if not tool:
+        return {"is_valid": False, "error_message": "BigEarthNet land-cover specialist is unavailable.",
+                "execution_trace": trace + [{"node": "execute_land_cover", "status": "failed", "error": "Tool not found"}]}
+    result = tool.run({"image_path": state["file_1_path"]})
+    return {"task_result": result, "execution_trace": trace + [result.get("execution_trace") or {"node": "execute_land_cover", "model": tool.name}]}
+
+
 def fuse_evidence_node(state: AgentState) -> Dict[str, Any]:
     """Node: assembles final answer, visual overlays, confidence, and PDF report."""
     if not state.get("is_valid", True) or state.get("error_message"):
@@ -285,6 +296,8 @@ def fuse_evidence_node(state: AgentState) -> Dict[str, Any]:
         "box_count",
         "target",
         "target_detected",
+        "predictions",
+        "scores",
     ):
         if key in task_result and key not in final_payload:
             final_payload[key] = task_result[key]
@@ -321,6 +334,7 @@ def specialist_routing_condition(state: AgentState) -> str:
         "grounding": "execute_grounding",
         "change": "execute_change",
         "optical_sar": "execute_optical_sar",
+        "land_cover": "execute_land_cover",
     }
     return routing_map.get(task, "fuse_evidence")
 
@@ -353,6 +367,7 @@ class SatQueryStateGraph:
             builder.add_node("execute_grounding", execute_grounding_node)
             builder.add_node("execute_change", execute_change_node)
             builder.add_node("execute_optical_sar", execute_optical_sar_node)
+            builder.add_node("execute_land_cover", execute_land_cover_node)
             builder.add_node("fuse_evidence", fuse_evidence_node)
 
             builder.add_edge(START, "validate_inputs")
@@ -370,11 +385,12 @@ class SatQueryStateGraph:
                     "execute_grounding": "execute_grounding",
                     "execute_change": "execute_change",
                     "execute_optical_sar": "execute_optical_sar",
+                    "execute_land_cover": "execute_land_cover",
                     "fuse_evidence": "fuse_evidence",
                 },
             )
 
-            for specialist_node in ("execute_vqa", "execute_caption", "execute_grounding", "execute_change", "execute_optical_sar"):
+            for specialist_node in ("execute_vqa", "execute_caption", "execute_grounding", "execute_change", "execute_optical_sar", "execute_land_cover"):
                 builder.add_edge(specialist_node, "fuse_evidence")
 
             builder.add_edge("fuse_evidence", END)
@@ -418,6 +434,7 @@ class SatQueryStateGraph:
                 "execute_grounding": execute_grounding_node,
                 "execute_change": execute_change_node,
                 "execute_optical_sar": execute_optical_sar_node,
+                "execute_land_cover": execute_land_cover_node,
             }
             if specialist in specialist_map:
                 state.update(specialist_map[specialist](state))

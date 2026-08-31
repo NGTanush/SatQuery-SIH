@@ -6,30 +6,37 @@ import numpy as np
 from PIL import Image
 from backend.models.base import BaseSpecialistModel
 from backend.config import settings
+from backend.models.vqa.preprocessing import load_rgb_image
 
 logger = logging.getLogger("satquery.vqa")
 
 class RemoteSensingVQAModel(BaseSpecialistModel):
     """
     Specialist model for Remote Sensing Visual Question Answering (RSVQA).
-    Wraps a Vision-Language Model (Salesforce/blip-vqa-base) and provides
-    a robust, pixel-analyzing fallback for offline/sandboxed environments.
+    Wraps the local RSVQA LoRA adapter on Salesforce/blip-vqa-base and provides
+    a clearly identified pixel-analysis fallback when model inference is unavailable.
     """
 
     def __init__(self):
         self.model_name = settings.VQA_MODEL_NAME
         self.use_fallback = settings.VQA_USE_FALLBACK
-        self.pipeline = None
         self.processor = None
         self.model = None
         self.device = "cpu"
         self._fallback_active = self.use_fallback
+        self._load_error = None
 
         if self.use_fallback:
             logger.info("VQA fallback explicitly enabled; skipping Hugging Face model loading.")
-            return
+        else:
+            logger.info("VQA model will load lazily on the first model-backed request.")
 
-        # Attempt to load PyTorch & Transformers
+    def _load_model(self) -> None:
+        """Load the base BLIP checkpoint and its fine-tuned local LoRA adapter."""
+        if self.model is not None:
+            return
+        if self._load_error:
+            raise RuntimeError(self._load_error)
         try:
             import torch
             from transformers import BlipProcessor, BlipForQuestionAnswering
@@ -39,22 +46,24 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 self.device = "mps"
                 
-            logger.info(f"Loading VQA model '{self.model_name}' on device '{self.device}'...")
-            self.processor = BlipProcessor.from_pretrained(self.model_name)
-            base_model = BlipForQuestionAnswering.from_pretrained(self.model_name).to(self.device)
-            if settings.VQA_ADAPTER_PATH and os.path.exists(settings.VQA_ADAPTER_PATH):
-                logger.info(f"Loading Peft VQA Adapter from '{settings.VQA_ADAPTER_PATH}'...")
-                from peft import PeftModel
-                self.model = PeftModel.from_pretrained(base_model, settings.VQA_ADAPTER_PATH)
-            else:
-                self.model = base_model
-            logger.info("Successfully loaded HuggingFace VQA model (with adapter if configured).")
+            adapter_path = settings.VQA_ADAPTER_PATH
+            if not adapter_path or not os.path.isdir(adapter_path):
+                raise RuntimeError("VQA_ADAPTER_PATH must point to the supplied RSVQA LoRA adapter directory.")
+            logger.info("Loading BLIP base model '%s' and RSVQA LoRA adapter '%s' on %s.", self.model_name, adapter_path, self.device)
+            load_options = {"local_files_only": settings.VQA_LOCAL_FILES_ONLY}
+            # Prefer the processor saved alongside the adapter so inference matches training.
+            self.processor = BlipProcessor.from_pretrained(adapter_path, **load_options)
+            base_model = BlipForQuestionAnswering.from_pretrained(self.model_name, **load_options).to(self.device)
+            from peft import PeftModel
+            self.model = PeftModel.from_pretrained(base_model, adapter_path).to(self.device).eval()
+            logger.info("Loaded the fine-tuned RSVQA BLIP LoRA model.")
         except Exception as e:
+            self._load_error = str(e)
             self._fallback_active = True
             logger.warning(
-                f"Failed to load Hugging Face VQA model: {str(e)}. "
-                f"Falling back to rule-based pixel heuristic analyzer."
+                "Failed to load the fine-tuned RSVQA BLIP LoRA model: %s. Falling back to the spectral analyzer.", e
             )
+            raise RuntimeError(self._load_error) from e
 
     @property
     def name(self) -> str:
@@ -90,16 +99,21 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
 
         # If fallback is active or explicitly requested via config
         if self._fallback_active or self.use_fallback:
-            return self._run_fallback(image_path, question, start_time)
+            return self._run_fallback(image_path, question, start_time, error_msg=self._load_error)
             
         try:
-            # Run model inference
-            image = Image.open(image_path).convert("RGB")
-            inputs_encoded = self.processor(image, question, return_tensors="pt").to(self.device)
+            self._load_model()
+            image = load_rgb_image(image_path)
+            inputs_encoded = self.processor(images=image, text=question, return_tensors="pt").to(self.device)
             
             import torch
             with torch.no_grad():
-                outputs = self.model.generate(**inputs_encoded)
+                outputs = self.model.generate(
+                    **inputs_encoded,
+                    max_new_tokens=settings.VQA_MAX_NEW_TOKENS,
+                    num_beams=settings.VQA_NUM_BEAMS,
+                    do_sample=False,
+                )
                 
             answer = self.processor.decode(outputs[0], skip_special_tokens=True)
             elapsed = time.time() - start_time
@@ -111,20 +125,27 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
                 "answer": answer,
                 "confidence": confidence,
                 "evidence": {
-                    "model_source": "Hugging Face Hub",
+                    "model_source": "local fine-tuned LoRA adapter + cached Hugging Face base model",
                     "model_name": self.model_name,
                     "adapter_path": settings.VQA_ADAPTER_PATH,
-                    "device": self.device
+                    "device": self.device,
+                    "input_representation": "RGB; saved BLIP processor resize/normalization",
+                    "inference_mode": "model",
                 },
                 "execution_trace": {
                     "task": "Visual Question Answering (VQA)",
-                    "model": f"{self.name} (HF BLIP + LoRA adapter)",
-                    "adapter_loaded": bool(settings.VQA_ADAPTER_PATH),
+                    "model": f"{self.name} (RSVQA BLIP + LoRA adapter)",
+                    "adapter_loaded": True,
                     "execution_time_seconds": round(elapsed, 4),
-                    "fallback_active": False
+                    "fallback_active": False,
+                    "inference_mode": "model",
                 }
             }
             
+        except ValueError:
+            # An incompatible raster must be reported to the caller, not
+            # presented as a fallback VQA answer.
+            raise
         except Exception as e:
             logger.error(f"Inference failed, using fallback: {str(e)}")
             return self._run_fallback(image_path, question, start_time, error_msg=str(e))
@@ -135,7 +156,7 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
         to answer common remote sensing VQA query keywords.
         """
         try:
-            image = Image.open(image_path).convert("RGB")
+            image = load_rgb_image(image_path)
             img_arr = np.array(image)
             height, width, channels = img_arr.shape
             total_pixels = height * width
@@ -214,7 +235,8 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
             "task": "Visual Question Answering (VQA)",
             "model": f"{self.name} (Spectral Fallback)",
             "execution_time_seconds": round(elapsed, 4),
-            "fallback_active": True
+            "fallback_active": True,
+            "inference_mode": "fallback",
         }
         if error_msg:
             trace_info["hf_model_error"] = error_msg
@@ -229,7 +251,8 @@ class RemoteSensingVQAModel(BaseSpecialistModel):
                     "structural_ratio": round(gray_ratio, 4)
                 },
                 "image_resolution": f"{width}x{height} pixels",
-                "total_analyzed_pixels": total_pixels
+                "total_analyzed_pixels": total_pixels,
+                "inference_mode": "fallback",
             },
             "execution_trace": trace_info
         }

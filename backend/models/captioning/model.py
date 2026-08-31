@@ -22,7 +22,7 @@ class RemoteSensingCaptionModel(BaseSpecialistModel):
         self.processor = None
         self.model = None
         self.device = "cpu"
-        self._fallback_active = settings.VQA_USE_FALLBACK
+        self._fallback_active = settings.CAPTION_USE_FALLBACK
 
         if self._fallback_active:
             logger.info("Captioning fallback explicitly enabled; skipping Hugging Face model loading.")
@@ -78,7 +78,7 @@ class RemoteSensingCaptionModel(BaseSpecialistModel):
 
         start_time = time.time()
 
-        if self._fallback_active or settings.VQA_USE_FALLBACK:
+        if self._fallback_active or settings.CAPTION_USE_FALLBACK:
             return self._run_fallback(image_path, start_time)
             
         try:

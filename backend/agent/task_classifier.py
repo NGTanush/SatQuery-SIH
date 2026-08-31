@@ -12,7 +12,7 @@ class TaskClassifier:
     """Deterministic, auditable router; replaceable with an LLM classifier later."""
 
     def classify(self, query: str, image_count: int, requested_task: str = "auto") -> RouteDecision:
-        allowed = {"vqa", "caption", "grounding", "change", "optical_sar"}
+        allowed = {"vqa", "caption", "grounding", "change", "optical_sar", "land_cover"}
         if requested_task != "auto":
             if requested_task not in allowed:
                 raise ValueError(f"Unsupported analysis_type '{requested_task}'.")
@@ -26,4 +26,6 @@ class TaskClassifier:
             return RouteDecision("caption", "Single image plus scene-description intent.")
         if any(word in text for word in ("locate", "highlight", "where is", "bounding box", "ground")):
             return RouteDecision("grounding", "Single image plus region-localization intent.")
+        if any(word in text for word in ("land cover", "land-cover", "classify", "classification", "corine")):
+            return RouteDecision("land_cover", "Single image plus land-cover classification intent.")
         return RouteDecision("vqa", "Single image defaults to visual question answering.")

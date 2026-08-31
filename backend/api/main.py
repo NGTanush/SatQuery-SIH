@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
-from backend.api.endpoints import vqa_router, caption_router, grounding_router, change_router, optical_sar_router, agent_router
+from backend.api.endpoints import vqa_router, caption_router, grounding_router, change_router, optical_sar_router, agent_router, land_cover_router
 
 # Configure Logger
 logging.basicConfig(
@@ -32,6 +32,7 @@ app.include_router(caption_router, prefix="/api/v1", tags=["Specialist Tools"])
 app.include_router(grounding_router, prefix="/api/v1", tags=["Specialist Tools"])
 app.include_router(change_router, prefix="/api/v1", tags=["Specialist Tools"])
 app.include_router(optical_sar_router, prefix="/api/v1", tags=["Specialist Tools"])
+app.include_router(land_cover_router, prefix="/api/v1", tags=["Specialist Tools"])
 app.include_router(agent_router, prefix="/api/v1", tags=["Agent"])
 
 @app.get("/")

@@ -10,11 +10,23 @@ class Settings(BaseSettings):
     # Model Configuration
     VQA_MODEL_NAME: str = "Salesforce/blip-vqa-base"
     VQA_USE_FALLBACK: bool = False
+    VQA_LOCAL_FILES_ONLY: bool = True
+    VQA_MAX_NEW_TOKENS: int = 16
+    VQA_NUM_BEAMS: int = 4
+    # Kept separate from VQA so model-backed VQA does not trigger an unrelated
+    # caption-model download at API startup.
+    CAPTION_USE_FALLBACK: bool = True
     VQA_ADAPTER_PATH: str | None = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "checkpoints",
         "rsvqa-blip-lora",
     )
+
+    # BigEarthNet v2.0 land-cover classification
+    BIGEARTHNET_MODEL_ID: str = "BIFOLD-BigEarthNetv2-0/convmixer_768_32-all-v0.2.0"
+    BIGEARTHNET_EXPECTED_BANDS: int = 12  # Sentinel-2 12 bands (the checkpoint uses S2 only)
+    BIGEARTHNET_THRESHOLD: float = 0.5
+
     
     # Paths
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")

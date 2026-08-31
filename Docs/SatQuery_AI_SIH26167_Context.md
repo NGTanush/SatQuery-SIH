@@ -1634,6 +1634,53 @@ The highest-priority implementation decisions still to be finalized are:
 
 These should be researched and validated before committing them to the final PPT.
 
+## 36.1 Implemented Prototype Status (31 August 2026)
+
+The backend prototype now exposes the following FastAPI routes:
+
+- `POST /api/v1/vqa` — single-image VQA;
+- `POST /api/v1/caption` — scene captioning;
+- `POST /api/v1/grounding` — text-guided region grounding;
+- `POST /api/v1/change` — bi-temporal change analysis;
+- `POST /api/v1/optical-sar` — optical and SAR fusion;
+- `POST /api/v1/agent` — agent-driven routing and evidence fusion;
+- `POST /api/v1/land-cover` — BigEarthNet v2.0 multi-label land-cover classification.
+
+### Verification result
+
+The supplied `rsvqa-blip-lora` checkpoint has been verified as a real LoRA
+adapter on `Salesforce/blip-vqa-base`, trained on the local RSVQA subset. A
+model-backed smoke test loaded the cached BLIP base and adapter on CPU, returned
+the non-empty answer `rural` for an RSVQA sample, and reported
+`inference_mode: model` with `fallback_active: false`. The same test verified
+automatic VQA routing through `/api/v1/agent`. The fallback VQA checks also
+pass, as do captioning, grounding, change detection, optical-SAR fusion, and
+the tested agent HTTP routes. The standard pytest suite passed (3 tests), and
+the evaluation-metric test passed when run through pytest.
+
+### Current limitations and honest demo claims
+
+- Model-backed VQA currently requires the cached `Salesforce/blip-vqa-base`
+  base weights because the supplied artifact is a LoRA adapter rather than a
+  complete standalone BLIP checkpoint. `VQA_LOCAL_FILES_ONLY=true` prevents
+  an accidental network request; deployments without the cached base model use
+  the visibly identified fallback.
+- BigEarthNet route validation is implemented and rejects non-14-band inputs;
+  an actual prediction has not yet been validated with a real co-registered
+  Sentinel-1/Sentinel-2 GeoTIFF and the official reBEN custom model code.
+- `tests/verify_agent.py` currently fails its history assertion when native
+  LangGraph checkpointing is active: `get_state_history()` reads the fallback
+  in-memory history rather than the native checkpointer state. The agent API
+  requests in that script still returned HTTP 200.
+- `tests/verify_evaluation.py` is pytest-compatible but cannot be invoked
+  directly because it does not add the project root to `sys.path`.
+
+Therefore, describe VQA as a **prototype-validated model-backed RSVQA LoRA
+workflow**, with a separately identified fallback. Captioning, grounding,
+change, and optical-SAR remain prototype-validated fallback workflows. Do not
+yet claim end-to-end BigEarthNet inference validation or production-grade VQA
+benchmark performance.
+
 ---
 
 # 37. One-Sentence Project Definition

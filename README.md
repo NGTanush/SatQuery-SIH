@@ -54,7 +54,10 @@ The interactive API documentation will be available at [http://127.0.0.1:8000/do
 - `POST /api/v1/grounding` — text-guided bounding-box grounding.
 - `POST /api/v1/change` — paired T1/T2 change map plus a question-grounded answer.
 - `POST /api/v1/optical-sar` — co-registered optical/SAR fusion for water and built-up evidence.
+- `POST /api/v1/land-cover` — BigEarthNet v2.0 multi-label land-cover classification for 14-band Sentinel-1/Sentinel-2 GeoTIFF chips.
 
-Set `VQA_USE_FALLBACK=true` (the default) for deterministic local/offline
-pixel-analysis fallbacks. Set it to `false` only when the Hugging Face model
-weights are available and model-backed inference is intended.
+By default, VQA uses the local RSVQA LoRA adapter on `Salesforce/blip-vqa-base`.
+The base BLIP weights must be cached locally when `VQA_LOCAL_FILES_ONLY=true`
+(the default). Set `VQA_USE_FALLBACK=true` for deterministic pixel-analysis
+fallback answers; every response exposes whether inference used `model` or
+`fallback` mode.
